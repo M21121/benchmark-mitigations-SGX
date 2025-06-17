@@ -117,6 +117,16 @@ public:
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
         return static_cast<double>(duration.count()) / 1000.0;
     }
+
+    double benchmark_crypto_workload(int iterations) {
+        auto start = std::chrono::high_resolution_clock::now();
+        for (int i = 0; i < iterations; i++) {
+            ecall_crypto_workload(global_eid);
+        }
+        auto end = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+        return static_cast<double>(duration.count()) / 1000.0;
+    }
 };
 
 // Helper function to set a specific mitigation flag
@@ -299,6 +309,8 @@ int main(int argc, char* argv[]) {
         time_ms = runner.benchmark_file_read(filename, iterations);
     } else if (test_type == "sgxread") {
         time_ms = runner.benchmark_sgx_file_read(filename, iterations);
+    } else if (test_type == "crypto") {
+        time_ms = runner.benchmark_crypto_workload(iterations);
     } else {
         std::cerr << "Unknown test type: " << test_type << "\n";
         sgx_destroy_enclave(global_eid);

@@ -9,7 +9,7 @@ echo "test_type,mitigations,iterations,total_time_ms,time_per_op_us" > $OUTPUT
 echo "Creating test file..."
 dd if=/dev/urandom of=test.txt bs=1024 count=100 2>/dev/null
 
-TESTS=("ecall" "pure_ocall" "pingpong" "fileread" "sgxread")
+TESTS=("ecall" "pure_ocall" "pingpong" "fileread" "sgxread" "crypto")
 
 # Updated mitigation sets to include individual speculation barriers
 MITIGATION_SETS=(

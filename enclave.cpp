@@ -103,3 +103,43 @@ void ecall_sgx_file_read(const char* filename) {
 
     mitigations::timing_noise();
 }
+
+void ecall_crypto_workload() {
+    mitigations::speculation_barrier();
+    mitigations::timing_noise();
+
+    // Simulate cryptographic operations common in SGX
+    const size_t data_size = 4096;
+    char buffer[data_size];
+    char hash_output[32]; // SHA-256 size
+
+    // Initialize with pseudo-random data
+    for (size_t i = 0; i < data_size; i++) {
+        buffer[i] = (char)(i * 17 + 42); // Simple deterministic pattern
+    }
+
+    // Simulate hash computation (simplified)
+    uint32_t hash = 0x12345678;
+    for (size_t i = 0; i < data_size; i++) {
+        hash = ((hash << 5) + hash) + (unsigned char)buffer[i];
+        // Apply barriers periodically for side-channel resistance
+        if (i % 128 == 0) {
+            mitigations::speculation_barrier();
+        }
+    }
+
+    // Simulate key derivation work
+    for (int round = 0; round < 100; round++) {
+        for (size_t i = 0; i < 32; i++) {
+            hash_output[i] = (char)((hash >> (i % 32)) ^ (round * i));
+        }
+        hash = ((hash << 3) + hash) ^ round;
+    }
+
+    // Apply mitigations to processed data
+    mitigations::cache_flush(buffer, data_size);
+    mitigations::cache_flush(hash_output, 32);
+    mitigations::secure_memzero(buffer, data_size);
+
+    mitigations::timing_noise();
+}

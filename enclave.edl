@@ -4,7 +4,7 @@ enclave {
 
     // Trusted functions (ECALLs) that can be called from the untrusted app
     trusted {
-        public void ecall_warmup(); 
+        public void ecall_warmup();
 
         // Receives mitigation settings from the app
         public void ecall_set_mitigation_config([in] const MitigationConfig* config);
@@ -21,6 +21,8 @@ enclave {
         // ECALLs for file I/O tests
         public void ecall_file_read([in, string] const char* filename);
         public void ecall_sgx_file_read([in, string] const char* filename);
+
+        public void ecall_crypto_workload();
     };
 
     // Untrusted functions (OCALLs) that can be called from within the enclave
