@@ -16,7 +16,7 @@
 | Test           | Description                                | Workload                                                             |
 | -------------- | ------------------------------------------ | -------------------------------------------------------------------- |
 | **ecall**      | Minimal ECALL operation                    | ECALL with 2000 arithmetic operations and mitigations                |
-| **pure_ocall** | Isolated OCALL time                        | ECALL → 2000 ops → OCALL → 100 ops → return                          |
+| **ocall** | Isolated OCALL time                        | ECALL → 2000 ops → OCALL → 100 ops → return                          |
 | **pingpong**   | ECALL that calls OCALL and returns         | ECALL with parameter → immediate OCALL back → return                 |
 | **fileread**   | File I/O via OCALL with basic processing   | ECALL → read 100KB file via OCALL → checksum data → cleanup          |
 | **sgxread**    | File I/O with SGX-specific data processing | Same as fileread + frequent barriers every 64 bytes + secure cleanup |
