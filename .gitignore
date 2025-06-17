@@ -1,0 +1,97 @@
+# SGX Build Artifacts
+*.so
+*.signed.so
+app
+enclave
+enclave.signed.so
+
+# SGX Generated Files
+enclave_u.c
+enclave_u.h
+enclave_t.c
+enclave_t.h
+
+# Object Files
+*.o
+*.obj
+
+# Generated Keys and Configs (if auto-generated)
+enclave_private.pem
+enclave.config.xml
+
+# Test Files
+test.txt
+large_test.txt
+*.csv
+benchmark_results.csv
+
+# Temporary and Cache Files
+*.tmp
+*.temp
+*.cache
+.DS_Store
+Thumbs.db
+
+# Build Directories
+build/
+bin/
+obj/
+out/
+
+# IDE and Editor Files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.*.swp
+.*.swo
+
+# Debug Files
+*.dSYM/
+*.pdb
+*.ilk
+*.map
+*.exp
+*.lib
+
+# System Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Log Files
+*.log
+*.out
+*.err
+
+# Core Dumps
+core
+core.*
+
+# Backup Files
+*.bak
+*.backup
+*~
+
+# SGX Simulation Files
+*.sim
+
+# Compiler Generated Files
+*.d
+*.dep
+*.depend
+
+# Archive Files (unless intentionally tracked)
+*.tar
+*.tar.gz
+*.zip
+*.rar
+
+# Local Environment Files
+.env
+.env.local

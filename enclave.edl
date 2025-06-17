@@ -1,0 +1,42 @@
+enclave {
+    // Import the shared mitigation configuration structure
+    include "mitigation_config.h"
+
+    // Trusted functions (ECALLs) that can be called from the untrusted app
+    trusted {
+        public void ecall_warmup(); 
+
+        // Receives mitigation settings from the app
+        public void ecall_set_mitigation_config([in] const MitigationConfig* config);
+
+        // A minimal ECALL to measure transition overhead
+        public void ecall_empty();
+
+        // ECALL to trigger an OCALL for benchmarking
+        public void ecall_trigger_ocall();
+
+        // ECALL for the ping-pong test
+        public void ecall_ping(int iteration);
+
+        // ECALLs for file I/O tests
+        public void ecall_file_read([in, string] const char* filename);
+        public void ecall_sgx_file_read([in, string] const char* filename);
+    };
+
+    // Untrusted functions (OCALLs) that can be called from within the enclave
+    untrusted {
+        // A minimal OCALL
+        void empty_ocall();
+
+        // OCALL to print a string to the console
+        void ocall_print_string([in, string] const char* str);
+
+        // OCALL for the ping-pong test
+        void pong_ocall(int iteration);
+
+        // OCALL to read a file into the enclave's buffer
+        size_t ocall_read_file([in, string] const char* filename,
+                               [out, size=buf_len] char* buf,
+                               size_t buf_len);
+    };
+};
