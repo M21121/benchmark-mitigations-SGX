@@ -24,6 +24,7 @@ test.txt
 large_test.txt
 *.csv
 benchmark_results.csv
+*.txt
 
 # Temporary and Cache Files
 *.tmp
