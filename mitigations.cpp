@@ -1,9 +1,10 @@
 // mitigations.cpp
+
 #include "mitigations.h"
 #include "sgx_trts.h"
 #include <string.h>
 
-static MitigationConfig g_enclave_config;
+MitigationConfig g_enclave_config;
 
 void set_enclave_config(const MitigationConfig* config) {
     if (config) {
@@ -14,38 +15,23 @@ void set_enclave_config(const MitigationConfig* config) {
 namespace mitigations {
     const size_t CACHE_LINE_SIZE = 64;
 
-    void speculation_barrier() {
-        // Legacy function - use all barriers if enabled
-        if (g_enclave_config.speculation_barriers) {
-            __asm__ volatile (
-                "lfence\n\t"
-                "mfence\n\t"
-                "cpuid\n\t"
-                ::: "memory", "eax", "ebx", "ecx", "edx"
-            );
-            return;
-        }
-
-        // Use individual barriers
+    void lfence_barrier() {
         if (g_enclave_config.lfence_barrier) {
             __asm__ volatile ("lfence" ::: "memory");
         }
+    }
+
+    void mfence_barrier() {
         if (g_enclave_config.mfence_barrier) {
             __asm__ volatile ("mfence" ::: "memory");
-        }
-        if (g_enclave_config.cpuid_barrier) {
-            __asm__ volatile (
-                "cpuid"
-                ::: "memory", "eax", "ebx", "ecx", "edx"
-            );
         }
     }
 
     void cache_flush(const void* addr, size_t size) {
         if (!g_enclave_config.cache_flushing) return;
-        const char* ptr = static_cast<const char*>(addr);
+        char* ptr = const_cast<char*>(static_cast<const char*>(addr));
         for (size_t i = 0; i < size; i += CACHE_LINE_SIZE) {
-            __asm__ volatile ("clflush %0" : "+m" (*(volatile char *)(ptr + i)));
+            __asm__ volatile ("clflush %0" : "+m" (*(ptr + i)));
         }
         __asm__ volatile ("mfence" ::: "memory");
     }

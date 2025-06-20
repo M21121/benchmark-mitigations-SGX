@@ -1,44 +1,45 @@
+// enclave.edl
 enclave {
-    // Import the shared mitigation configuration structure
     include "mitigation_config.h"
 
-    // Trusted functions (ECALLs) that can be called from the untrusted app
     trusted {
         public void ecall_warmup();
-
-        // Receives mitigation settings from the app
         public void ecall_set_mitigation_config([in] const MitigationConfig* config);
-
-        // A minimal ECALL to measure transition overhead
         public void ecall_empty();
-
-        // ECALL to trigger an OCALL for benchmarking
         public void ecall_trigger_ocall();
-
-        // ECALL for the ping-pong test
         public void ecall_ping(int iteration);
 
-        // ECALLs for file I/O tests
+        // Two file read methods
         public void ecall_file_read([in, string] const char* filename);
         public void ecall_sgx_file_read([in, string] const char* filename);
 
         public void ecall_crypto_workload();
+        public void apply_speculation_mitigations();
+
+        // Helper for creating sealed files
+        public void ecall_create_sealed_file([in, string] const char* filename,
+                                           [in, size=data_len] const char* data,
+                                           size_t data_len);
+
+        public void ecall_setup_ocall_benchmark();
+        public void ecall_measure_pure_ocall(int iterations);
     };
 
-    // Untrusted functions (OCALLs) that can be called from within the enclave
     untrusted {
-        // A minimal OCALL
         void empty_ocall();
-
-        // OCALL to print a string to the console
         void ocall_print_string([in, string] const char* str);
-
-        // OCALL for the ping-pong test
         void pong_ocall(int iteration);
 
-        // OCALL to read a file into the enclave's buffer
         size_t ocall_read_file([in, string] const char* filename,
                                [out, size=buf_len] char* buf,
                                size_t buf_len);
+
+        size_t ocall_read_sealed_file([in, string] const char* filename,
+                                     [out, size=buf_len] uint8_t* sealed_buf,
+                                     size_t buf_len);
+
+        int ocall_write_sealed_file([in, string] const char* filename,
+                                   [in, size=data_len] const uint8_t* sealed_data,
+                                   size_t data_len);
     };
 };

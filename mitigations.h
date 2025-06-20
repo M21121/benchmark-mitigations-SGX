@@ -4,12 +4,13 @@
 
 #include "mitigation_config.h"
 #include <stddef.h>
+#include <stdint.h>
+
+void set_enclave_config(const MitigationConfig* config);
 
 namespace mitigations {
     void lfence_barrier();
     void mfence_barrier();
-    void cpuid_barrier();
-    void speculation_barrier();
     void cache_flush(const void* addr, size_t size);
     void timing_noise();
     void memory_barrier();

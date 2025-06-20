@@ -1,8 +1,10 @@
 // app.cpp
+
 #include <iostream>
 #include <vector>
 #include <string>
 #include <chrono>
+#include <thread>
 #include <sched.h>
 #include <unistd.h>
 #include <getopt.h>
@@ -74,16 +76,28 @@ public:
         return static_cast<double>(duration.count()) / 1000.0;
     }
 
-    // Correctly benchmark an OCALL by triggering it from within the enclave
     double benchmark_pure_ocall(int iterations) {
-        auto start = std::chrono::high_resolution_clock::now();
-        for (int i = 0; i < iterations; i++) {
-            ecall_trigger_ocall(global_eid);
+        // First, enter the enclave once to set up the measurement context
+        sgx_status_t ret = ecall_setup_ocall_benchmark(global_eid);
+        if (ret != SGX_SUCCESS) {
+            std::cerr << "Failed to setup OCALL benchmark" << std::endl;
+            return 0.0;
         }
+
+        // Now measure just the OCALL overhead by calling from within enclave
+        auto start = std::chrono::high_resolution_clock::now();
+        ret = ecall_measure_pure_ocall(global_eid, iterations);
         auto end = std::chrono::high_resolution_clock::now();
+
+        if (ret != SGX_SUCCESS) {
+            std::cerr << "OCALL benchmark failed" << std::endl;
+            return 0.0;
+        }
+
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
         return static_cast<double>(duration.count()) / 1000.0;
     }
+
 
     // Benchmark an ECALL that immediately makes an OCALL back to the app
     double benchmark_ping_pong(int iterations) {
@@ -96,7 +110,7 @@ public:
         return static_cast<double>(duration.count()) / 1000.0;
     }
 
-    // Benchmark file reading via an OCALL
+    // Benchmark untrusted file reading via OCALL
     double benchmark_file_read(const std::string& filename, int iterations) {
         auto start = std::chrono::high_resolution_clock::now();
         for (int i = 0; i < iterations; i++) {
@@ -107,7 +121,7 @@ public:
         return static_cast<double>(duration.count()) / 1000.0;
     }
 
-    // Benchmark file reading with SGX-specific data processing mitigations
+    // Benchmark SGX sealed file reading
     double benchmark_sgx_file_read(const std::string& filename, int iterations) {
         auto start = std::chrono::high_resolution_clock::now();
         for (int i = 0; i < iterations; i++) {
@@ -127,14 +141,27 @@ public:
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
         return static_cast<double>(duration.count()) / 1000.0;
     }
+
+    // Helper to create sealed test files
+    void create_sealed_test_file(const std::string& filename) {
+        std::string test_data = "This is test data for SGX sealing benchmark. ";
+        // Repeat to make it larger
+        for (int i = 0; i < 50; i++) {
+            test_data += "More test data " + std::to_string(i) + ". ";
+        }
+
+        std::string sealed_filename = filename + ".sealed";
+        ecall_create_sealed_file(global_eid, sealed_filename.c_str(),
+                                test_data.c_str(), test_data.length());
+
+        std::cout << "Created sealed test file: " << sealed_filename << std::endl;
+    }
 };
 
 // Helper function to set a specific mitigation flag
 void set_mitigation_flag(const std::string& flag) {
     if (flag == "lfence") g_app_config.lfence_barrier = true;
     else if (flag == "mfence") g_app_config.mfence_barrier = true;
-    else if (flag == "cpuid") g_app_config.cpuid_barrier = true;
-    else if (flag == "speculation") g_app_config.speculation_barriers = true;
     else if (flag == "cache") g_app_config.cache_flushing = true;
     else if (flag == "timing") g_app_config.timing_noise = true;
     else if (flag == "constant") g_app_config.constant_time_ops = true;
@@ -147,18 +174,13 @@ void parse_mitigations(const std::string& mitigation_str) {
 
     if (mitigation_str.empty() || mitigation_str == "none") return;
     if (mitigation_str == "all") {
-        g_app_config.speculation_barriers = true;
+        g_app_config.lfence_barrier = true;
+        g_app_config.mfence_barrier = true;
         g_app_config.cache_flushing = true;
         g_app_config.timing_noise = true;
         g_app_config.constant_time_ops = true;
         g_app_config.memory_barriers = true;
         g_app_config.disable_hyperthreading = true;
-        return;
-    }
-    if (mitigation_str == "all_speculation") {
-        g_app_config.lfence_barrier = true;
-        g_app_config.mfence_barrier = true;
-        g_app_config.cpuid_barrier = true;
         return;
     }
 
@@ -178,8 +200,6 @@ void print_config() {
     std::cout << "Current mitigation configuration:\n";
     std::cout << "  LFENCE barrier:       " << (g_app_config.lfence_barrier ? "ON" : "OFF") << "\n";
     std::cout << "  MFENCE barrier:       " << (g_app_config.mfence_barrier ? "ON" : "OFF") << "\n";
-    std::cout << "  CPUID barrier:        " << (g_app_config.cpuid_barrier ? "ON" : "OFF") << "\n";
-    std::cout << "  Speculation barriers: " << (g_app_config.speculation_barriers ? "ON" : "OFF") << "\n";
     std::cout << "  Cache flushing:       " << (g_app_config.cache_flushing ? "ON" : "OFF") << "\n";
     std::cout << "  Timing noise:         " << (g_app_config.timing_noise ? "ON" : "OFF") << "\n";
     std::cout << "  Constant time ops:    " << (g_app_config.constant_time_ops ? "ON" : "OFF") << "\n";
@@ -188,56 +208,72 @@ void print_config() {
 }
 
 // --- OCALL Implementations ---
-// These functions are called by the enclave to interact with the untrusted app
 
-// OCALL to perform some work, ensuring the OCALL transition itself is measured
 void empty_ocall() {
-    // Perform a small amount of volatile work to prevent this from being optimized away
-    volatile int result = 0;
-    for (int i = 0; i < 100; i++) {
-        result += i;
+    volatile int counter = 0;
+    for (int i = 0; i < 100; ++i) {
+        counter += i % 123;
     }
 }
 
-// OCALL to print a string from the enclave
 void ocall_print_string(const char* str) {
-    // Using printf for direct output. In a real app, use a safer logging mechanism.
     printf("%s", str);
 }
 
-// OCALL part of the ping-pong test
 void pong_ocall(int iteration) {
-    // This OCALL intentionally does nothing but return, to measure the transition
+    volatile int counter = 0;
+    for (int i = 0; i < 100; ++i) {
+        counter += i % 123;
+    }
+    (void)iteration;
 }
 
-// OCALL to read a file from the untrusted filesystem
 size_t ocall_read_file(const char* filename, char* buf, size_t buf_len) {
     FILE* file = fopen(filename, "rb");
     if (!file) return 0;
-
     size_t bytes_read = fread(buf, 1, buf_len, file);
     fclose(file);
     return bytes_read;
 }
 
-// Initializes the SGX enclave
+// OCALL for reading sealed files
+size_t ocall_read_sealed_file(const char* filename, uint8_t* sealed_buf, size_t buf_len) {
+    FILE* file = fopen(filename, "rb");
+    if (!file) return 0;
+
+    size_t bytes_read = fread(sealed_buf, 1, buf_len, file);
+    fclose(file);
+    return bytes_read;
+}
+
+// OCALL for writing sealed files
+int ocall_write_sealed_file(const char* filename, const uint8_t* sealed_data, size_t data_len) {
+    FILE* file = fopen(filename, "wb");
+    if (!file) return -1;
+
+    size_t written = fwrite(sealed_data, 1, data_len, file);
+    fclose(file);
+    return (written == data_len) ? 0 : -1;
+}
+
 int initialize_enclave() {
     sgx_status_t ret;
     sgx_launch_token_t token = {0};
     int updated = 0;
-
-    ret = sgx_create_enclave("enclave.signed.so", SGX_DEBUG_FLAG, &token, &updated, &global_eid, nullptr);
+    ret = sgx_create_enclave("enclave.signed.so", SGX_DEBUG_FLAG,
+                             &token, &updated, &global_eid, nullptr);
     return (ret == SGX_SUCCESS) ? 0 : -1;
 }
 
 void print_usage(const char* program) {
     std::cout << "Usage: " << program << " [options]\n";
     std::cout << "Options:\n";
-    std::cout << "  -t, --test TYPE          Test type (ecall, pure_ocall, pingpong, fileread, sgxread)\n";
+    std::cout << "  -t, --test TYPE          Test type (ecall, pure_ocall, pingpong, untrusted_file, sealed_file, crypto)\n";
     std::cout << "  -i, --iterations N       Number of iterations (default: 1000)\n";
     std::cout << "  -f, --file FILE          File for read tests (default: test.txt)\n";
-    std::cout << "  -m, --mitigations LIST   Comma-separated mitigations (e.g., speculation,cache,all,none)\n";
+    std::cout << "  -m, --mitigations LIST   Comma-separated mitigations (e.g., lfence,cache,all,none)\n";
     std::cout << "  -o, --output FILE        Output CSV file\n";
+    std::cout << "  -s, --setup              Create sealed test files\n";
     std::cout << "  -h, --help               Show this help\n";
 }
 
@@ -247,6 +283,7 @@ int main(int argc, char* argv[]) {
     std::string filename = "test.txt";
     std::string output_file;
     std::string mitigations = "none";
+    bool setup_files = false;
 
     static struct option long_options[] = {
         {"test", required_argument, 0, 't'},
@@ -254,27 +291,24 @@ int main(int argc, char* argv[]) {
         {"file", required_argument, 0, 'f'},
         {"mitigations", required_argument, 0, 'm'},
         {"output", required_argument, 0, 'o'},
+        {"setup", no_argument, 0, 's'},
         {"help", no_argument, 0, 'h'},
         {0, 0, 0, 0}
     };
 
     int opt;
-    while ((opt = getopt_long(argc, argv, "t:i:f:m:o:h", long_options, nullptr)) != -1) {
+    while ((opt = getopt_long(argc, argv, "t:i:f:m:o:sh",
+                              long_options, nullptr)) != -1) {
         switch (opt) {
             case 't': test_type = optarg; break;
             case 'i': iterations = std::stoi(optarg); break;
             case 'f': filename = optarg; break;
             case 'm': mitigations = optarg; break;
             case 'o': output_file = optarg; break;
+            case 's': setup_files = true; break;
             case 'h': print_usage(argv[0]); return 0;
             default: print_usage(argv[0]); return 1;
         }
-    }
-
-    if (test_type.empty()) {
-        std::cerr << "Error: Test type required\n";
-        print_usage(argv[0]);
-        return 1;
     }
 
     parse_mitigations(mitigations);
@@ -288,27 +322,41 @@ int main(int argc, char* argv[]) {
     BenchmarkRunner runner;
     runner.setup_environment();
 
-    // --- WARM-UP PHASE ---
-    // Run the warm-up ECALL a number of times to stabilize the CPU frequency.
+    // Setup sealed files if requested
+    if (setup_files) {
+        std::cout << "Creating sealed test files..." << std::endl;
+        runner.create_sealed_test_file(filename);
+        sgx_destroy_enclave(global_eid);
+        return 0;
+    }
+
+    if (test_type.empty()) {
+        std::cerr << "Error: Test type required\n";
+        print_usage(argv[0]);
+        sgx_destroy_enclave(global_eid);
+        return 1;
+    }
+
+    // Warm-up
     std::cout << "Warming up CPU..." << std::endl;
-    for (int i = 0; i < 200; ++i) { // Run many iterations
+    for (int i = 0; i < 200; ++i) {
          ecall_warmup(global_eid);
     }
     std::cout << "Warm-up complete. Starting benchmark." << std::endl;
-    // --- END WARM-UP PHASE ---
 
     double time_ms = 0;
-
     if (test_type == "ecall") {
         time_ms = runner.benchmark_empty_ecall(iterations);
     } else if (test_type == "pure_ocall") {
         time_ms = runner.benchmark_pure_ocall(iterations);
     } else if (test_type == "pingpong") {
         time_ms = runner.benchmark_ping_pong(iterations);
-    } else if (test_type == "fileread") {
+    } else if (test_type == "untrusted_file") {
         time_ms = runner.benchmark_file_read(filename, iterations);
-    } else if (test_type == "sgxread") {
-        time_ms = runner.benchmark_sgx_file_read(filename, iterations);
+    } else if (test_type == "sealed_file") {
+        // For sgxread, use the sealed file
+        std::string sealed_filename = filename + ".sealed";
+        time_ms = runner.benchmark_sgx_file_read(sealed_filename, iterations);
     } else if (test_type == "crypto") {
         time_ms = runner.benchmark_crypto_workload(iterations);
     } else {
@@ -322,8 +370,8 @@ int main(int argc, char* argv[]) {
 
     if (!output_file.empty()) {
         std::ofstream csv(output_file, std::ios::app);
-        csv << test_type << "," << mitigations << "," << iterations << ","
-            << time_ms << "," << time_per_op << "\n";
+        csv << test_type << "," << mitigations << ","
+            << iterations << "," << time_ms << "," << time_per_op << "\n";
     }
 
     sgx_destroy_enclave(global_eid);

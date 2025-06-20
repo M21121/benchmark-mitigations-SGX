@@ -251,7 +251,7 @@ clean-intermediate:
 
 clean:
 	@rm -f $(App_Name) $(Signed_Enclave_Name) $(Intermediate_Files) \
-		test.txt large_test.txt *.csv
+		test.txt large_test.txt
 	@echo "Cleaned all build artifacts and test files"
 
 clean-all: clean
