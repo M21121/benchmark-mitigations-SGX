@@ -11,7 +11,6 @@ else
 	DISABLE_DEBUG_VALUE := 1
 endif
 
-
 ifeq ($(shell getconf LONG_BIT), 32)
 	SGX_ARCH := x86
 else ifeq ($(findstring -m32, $(CXXFLAGS)), -m32)
@@ -63,8 +62,8 @@ else
 endif
 
 ######## App Settings ########
-App_Cpp_Files := app.cpp app_config.cpp
-App_Include_Paths := -I$(SGX_SDK)/include -I.
+App_Cpp_Files := app/app.cpp app/app_config.cpp app/benchmark_runner.cpp app/config_parser.cpp app/ocall_handlers.cpp
+App_Include_Paths := -I$(SGX_SDK)/include -I. -Iapp
 App_C_Flags := $(SGX_COMMON_CFLAGS) $(SECURITY_FLAGS) $(App_Include_Paths)
 App_Cpp_Flags := $(SGX_COMMON_CXXFLAGS) $(SECURITY_FLAGS) $(App_Include_Paths)
 App_Link_Flags := $(SGX_COMMON_FLAGS) $(SECURITY_FLAGS) -B/usr/bin/ -L$(SGX_LIBRARY_PATH) \
@@ -77,9 +76,9 @@ else
 endif
 
 ######## Enclave Settings ########
-Enclave_Cpp_Files := enclave.cpp mitigations.cpp
+Enclave_Cpp_Files := enclave/enclave.cpp app/mitigations.cpp
 Enclave_Include_Paths := -I$(SGX_SDK)/include -I$(SGX_SDK)/include/tlibc \
-	-I$(SGX_SDK)/include/libcxx -I.
+	-I$(SGX_SDK)/include/libcxx -I. -Iapp -Ienclave
 
 Enclave_C_Flags := $(SGX_COMMON_CFLAGS) -nostdinc -fvisibility=hidden -fpie \
 	-fno-builtin-printf $(Enclave_Include_Paths)
@@ -99,16 +98,16 @@ Enclave_Link_Flags := $(SGX_COMMON_FLAGS) -Wl,--no-undefined -nostdlib \
 	-Wl,--defsym,__ImageBase=0 -Wl,--gc-sections
 
 # File names
-App_Name := app
+App_Name := sgx_benchmark
 Enclave_Name := enclave.so
 Signed_Enclave_Name := enclave.signed.so
-Enclave_Config_File := enclave.config.xml
+Enclave_Config_File := enclave/enclave.config.xml
 
 # Generated files
 Generated_Files := enclave_u.c enclave_u.h enclave_t.c enclave_t.h
 
 # Object files
-App_Objects := app.o app_config.o enclave_u.o
+App_Objects := app.o app_config.o benchmark_runner.o config_parser.o ocall_handlers.o enclave_u.o
 Enclave_Objects := enclave.o mitigations.o enclave_t.o
 
 # Intermediate files for cleanup
@@ -120,24 +119,36 @@ Intermediate_Files := $(Generated_Files) $(App_Objects) $(Enclave_Objects) $(Enc
 all: $(App_Name) $(Signed_Enclave_Name)
 
 ######## EDL Generation ########
-$(Generated_Files): enclave.edl
+$(Generated_Files): enclave/enclave.edl
 	@echo "Generating edge routines..."
-	@$(SGX_EDGER8R) --untrusted enclave.edl --search-path $(SGX_SDK)/include
-	@$(SGX_EDGER8R) --trusted enclave.edl --search-path $(SGX_SDK)/include
+	@$(SGX_EDGER8R) --untrusted enclave/enclave.edl --search-path $(SGX_SDK)/include --search-path app
+	@$(SGX_EDGER8R) --trusted enclave/enclave.edl --search-path $(SGX_SDK)/include --search-path app
 	@echo "GEN  =>  $(Generated_Files)"
 
 ######## App Objects ########
-app_config.o: app_config.cpp mitigation_config.h
+app_config.o: app/app_config.cpp app/mitigation_config.h
 	@$(CXX) $(App_Cpp_Flags) -c $< -o $@
 	@echo "CXX  <=  $<"
 
-app.o: app.cpp enclave_u.h mitigation_config.h
+app.o: app/app.cpp enclave_u.h app/mitigation_config.h
 	@$(CXX) $(App_Cpp_Flags) -c $< -o $@
 	@echo "CXX  <=  $<"
 
 enclave_u.o: enclave_u.c
 	@$(CC) $(App_C_Flags) -c $< -o $@
 	@echo "CC   <=  $<"
+
+benchmark_runner.o: app/benchmark_runner.cpp app/benchmark_runner.h app/cycle_counter.h
+	@$(CXX) $(App_Cpp_Flags) -c $< -o $@
+	@echo "CXX  <=  $<"
+
+config_parser.o: app/config_parser.cpp app/config_parser.h app/mitigation_config.h
+	@$(CXX) $(App_Cpp_Flags) -c $< -o $@
+	@echo "CXX  <=  $<"
+
+ocall_handlers.o: app/ocall_handlers.cpp enclave_u.h
+	@$(CXX) $(App_Cpp_Flags) -c $< -o $@
+	@echo "CXX  <=  $<"
 
 ######## App Binary ########
 $(App_Name): $(App_Objects)
@@ -149,11 +160,11 @@ enclave_t.o: enclave_t.c
 	@$(CC) $(Enclave_C_Flags) -c $< -o $@
 	@echo "CC   <=  $<"
 
-mitigations.o: mitigations.cpp mitigations.h mitigation_config.h enclave_t.h
+mitigations.o: app/mitigations.cpp app/mitigations.h app/mitigation_config.h enclave_t.h
 	@$(CXX) $(Enclave_Cpp_Flags) -c $< -o $@
 	@echo "CXX  <=  $<"
 
-enclave.o: enclave.cpp enclave_t.h mitigations.h mitigation_config.h
+enclave.o: enclave/enclave.cpp enclave_t.h app/mitigations.h app/mitigation_config.h
 	@$(CXX) $(Enclave_Cpp_Flags) -c $< -o $@
 	@echo "CXX  <=  $<"
 
@@ -164,7 +175,7 @@ $(Enclave_Name): $(Enclave_Objects)
 
 ######## Signed Enclave ########
 $(Signed_Enclave_Name): $(Enclave_Name) $(Enclave_Config_File)
-	@$(SGX_ENCLAVE_SIGNER) sign -key enclave_private.pem -enclave $(Enclave_Name) \
+	@$(SGX_ENCLAVE_SIGNER) sign -key enclave/enclave_private.pem -enclave $(Enclave_Name) \
 		-out $@ -config $(Enclave_Config_File)
 	@echo "SIGN =>  $@"
 
@@ -178,9 +189,9 @@ test-files:
 test-basic: $(App_Name) $(Signed_Enclave_Name) test-files
 	@echo "Running basic functionality tests..."
 	@./$(App_Name) -t ecall -i 10 -m none
-	@./$(App_Name) -t ocall -i 10 -m none
+	@./$(App_Name) -t pure_ocall -i 10 -m none
 	@./$(App_Name) -t pingpong -i 5 -m none
-	@./$(App_Name) -t fileread -i 5 -m none -f test.txt
+	@./$(App_Name) -t untrusted_file -i 5 -m none -f test.txt
 	@echo "Basic tests completed successfully"
 
 benchmark: $(App_Name) $(Signed_Enclave_Name) test-files
@@ -191,12 +202,16 @@ benchmark: $(App_Name) $(Signed_Enclave_Name) test-files
 
 test-mitigations: $(App_Name) $(Signed_Enclave_Name) test-files
 	@echo "Testing individual mitigations..."
-	@echo "Testing speculation barriers..."
-	@./$(App_Name) -t ecall -i 100 -m speculation
+	@echo "Testing lfence barriers..."
+	@./$(App_Name) -t ecall -i 100 -m lfence
+	@echo "Testing mfence barriers..."
+	@./$(App_Name) -t ecall -i 100 -m mfence
 	@echo "Testing cache flushing..."
 	@./$(App_Name) -t ecall -i 100 -m cache
-	@echo "Testing timing noise..."
-	@./$(App_Name) -t ecall -i 100 -m timing
+	@echo "Testing constant time operations..."
+	@./$(App_Name) -t ecall -i 100 -m constant
+	@echo "Testing memory barriers..."
+	@./$(App_Name) -t ecall -i 100 -m memory
 	@echo "Testing all mitigations..."
 	@./$(App_Name) -t ecall -i 100 -m all
 	@echo "Mitigation tests completed"
@@ -231,13 +246,15 @@ install-deps:
 		protobuf-compiler libprotobuf-dev debhelper cmake reprepro unzip
 	@echo "Dependencies installed. Please install Intel SGX SDK separately."
 
-enclave_private.pem:
+enclave/enclave_private.pem:
 	@echo "Generating enclave signing key..."
+	@mkdir -p enclave
 	@openssl genrsa -out $@ -3 3072
 	@echo "Generated $@"
 
 $(Enclave_Config_File):
 	@echo "Creating enclave configuration..."
+	@mkdir -p enclave
 	@echo '<EnclaveConfiguration>' > $@
 	@echo '  <ProdID>0</ProdID>' >> $@
 	@echo '  <ISVSVN>0</ISVSVN>' >> $@
@@ -258,11 +275,11 @@ clean-intermediate:
 
 clean:
 	@rm -f $(App_Name) $(Signed_Enclave_Name) $(Intermediate_Files) \
-		test.txt large_test.txt
+		test.txt large_test.txt *.sealed
 	@echo "Cleaned all build artifacts and test files"
 
 clean-all: clean
-	@rm -f enclave_private.pem $(Enclave_Config_File)
+	@rm -f enclave/enclave_private.pem $(Enclave_Config_File)
 	@echo "Cleaned everything including generated keys and configs"
 
 ######## Help Target ########
@@ -272,7 +289,7 @@ help:
 	@echo ""
 	@echo "Build Targets:"
 	@echo "  all              - Build application and signed enclave (default)"
-	@echo "  $(App_Name)             - Build application only"
+	@echo "  $(App_Name)      - Build application only"
 	@echo "  $(Signed_Enclave_Name) - Build and sign enclave"
 	@echo ""
 	@echo "Test Targets:"
@@ -297,7 +314,7 @@ help:
 	@echo "  SGX_DEBUG=$(SGX_DEBUG) (1 for debug, 0 for release)"
 
 # Ensure required files exist
-$(App_Name) $(Signed_Enclave_Name): | enclave_private.pem $(Enclave_Config_File)
+$(App_Name) $(Signed_Enclave_Name): | enclave/enclave_private.pem $(Enclave_Config_File)
 
 # Dependencies
 $(App_Objects): $(Generated_Files)

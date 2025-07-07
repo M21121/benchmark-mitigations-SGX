@@ -1,8 +1,6 @@
 # SGX Build Artifacts
 *.so
 *.signed.so
-app
-enclave
 enclave.signed.so
 
 # SGX Generated Files
