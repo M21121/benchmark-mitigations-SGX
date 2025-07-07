@@ -26,19 +26,19 @@
 
 | Test               | Description                              | Workload                                                             |
 | ------------------ | ---------------------------------------- | -------------------------------------------------------------------- |
-| **ecall**          | Minimal ECALL operation                  | ECALL with 100 arithmetic operations and conditional mitigations     |
+| **ecall**          | Minimal ECALL operation                  | ECALL with 100 arithmetic operations                               |
 | **pure_ocall**     | Isolated OCALL time                     | ECALL → setup → measure N OCALLs (each with 100 ops) → return       |
 | **pingpong**       | ECALL that calls OCALL and returns      | ECALL with parameter → OCALL with 100 ops → return                   |
-| **untrusted_file** | File I/O via OCALL with basic processing | ECALL → read 8KB file via OCALL → checksum data → conditional cleanup |
-| **sealed_file**    | SGX sealed file I/O with hardware crypto | ECALL → read sealed file → SGX unseal → checksum → secure cleanup    |
+| **untrusted_file** | File I/O via OCALL with basic processing | ECALL → read 8KB file via OCALL → checksum data |
+| **sealed_file**    | SGX sealed file I/O with hardware crypto | ECALL → read sealed file → SGX unseal → checksum   |
 | **crypto**         | Cryptographic workload simulation        | Hash computation + key derivation on 4KB data with periodic barriers |
 
 ## Mitigation Explanations
 
 | Mitigation          | Purpose                        | How It Works                                                                                                                                           |
 | ------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **lfence**          | Prevent speculative loads      | CPU instruction that blocks load operations until all prior instructions complete - applied conditionally based on configuration                       |
-| **mfence**          | Prevent speculative memory ops | CPU instruction that blocks all memory operations until prior instructions complete - applied conditionally based on configuration                     |
+| **lfence**          | Prevent speculative loads      | CPU instruction that blocks load operations until all prior instructions complete                        |
+| **mfence**          | Prevent speculative memory ops | CPU instruction that blocks all memory operations until prior instructions complete                     |
 | **cache**           | Prevent cache-based attacks    | Flushes memory from CPU cache using `clflush` instruction on 64-byte cache lines                                                                      |
 | **constant**        | Prevent data-dependent timing  | Uses constant-time algorithms for memory operations with secure cleanup and cache flushing                                                             |
-| **memory**          | Enforce memory ordering        | Uses `mfence` to prevent memory reordering attacks - applied conditionally in ecall operations                                                        |
+| **memory**          | Enforce memory ordering        | Uses `mfence` to prevent memory reordering attacks                                                        |
