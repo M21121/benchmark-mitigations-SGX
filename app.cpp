@@ -27,46 +27,65 @@ private:
 
     // Helper to identify physical cores (assumes hyperthreading is paired on adjacent cores)
     void get_physical_cores() {
-        long num_cores_long = sysconf(_SC_NPROCESSORS_ONLN);
-        int num_cores = static_cast<int>(num_cores_long);
-        // This simple logic assumes core 0, 2, 4... are physical cores
-        for (int i = 0; i < num_cores; i += 2) {
-            physical_cores.push_back(i);
-        }
+        // long num_cores_long = sysconf(_SC_NPROCESSORS_ONLN);
+        // int num_cores = static_cast<int>(num_cores_long);
+        // // This simple logic assumes core 0, 2, 4... are physical cores
+        // for (int i = 0; i < num_cores; i += 2) {
+        //     physical_cores.push_back(i);
+        // }
     }
 
     // Pin the current thread to a specific physical core to mitigate hyperthreading effects
     void pin_to_physical_core() {
-        if (physical_cores.empty()) get_physical_cores();
+        // if (physical_cores.empty()) get_physical_cores();
 
-        if (physical_cores.empty()) {
-            std::cerr << "Warning: Could not determine physical cores." << std::endl;
-            return;
+        // if (physical_cores.empty()) {
+        //     std::cerr << "Warning: Could not determine physical cores." << std::endl;
+        //     return;
+        // }
+
+        // cpu_set_t cpuset;
+        // CPU_ZERO(&cpuset);
+        // CPU_SET(physical_cores[0], &cpuset);
+
+        // if (sched_setaffinity(0, sizeof(cpuset), &cpuset) == 0) {
+        //     std::cout << "Pinned to physical core " << physical_cores[0] << std::endl;
+        // } else {
+        //     std::cerr << "Warning: Failed to pin to physical core." << std::endl;
+        // }
+    }
+
+    void flush_caches() {
+        const size_t cache_flush_size = 32 * 1024 * 1024; // 32MB
+        volatile char* flush_buffer = new char[cache_flush_size];
+
+        for (size_t i = 0; i < cache_flush_size; i += 64) {
+            flush_buffer[i] = static_cast<char>(i & 0xFF);
         }
 
-        cpu_set_t cpuset;
-        CPU_ZERO(&cpuset);
-        CPU_SET(physical_cores[0], &cpuset);
-
-        if (sched_setaffinity(0, sizeof(cpuset), &cpuset) == 0) {
-            std::cout << "Pinned to physical core " << physical_cores[0] << std::endl;
-        } else {
-            std::cerr << "Warning: Failed to pin to physical core." << std::endl;
+        volatile int sum = 0;
+        for (size_t i = 0; i < cache_flush_size; i += 64) {
+            sum += flush_buffer[i];
         }
+
+        delete[] flush_buffer;
+        __asm__ volatile ("mfence" ::: "memory");
     }
 
 public:
     // Set up environment based on configuration, like pinning cores
     void setup_environment() {
-        if (g_app_config.disable_hyperthreading) {
-            pin_to_physical_core();
-        }
+        // if (g_app_config.disable_hyperthreading) {
+        //     pin_to_physical_core();
+        // }
         // Send the final configuration into the enclave
         ecall_set_mitigation_config(global_eid, &g_app_config);
     }
 
     // Benchmark a minimal ECALL to measure transition overhead + enabled mitigations
     double benchmark_empty_ecall(int iterations) {
+
+
         auto start = std::chrono::high_resolution_clock::now();
         for (int i = 0; i < iterations; i++) {
             ecall_empty(global_eid);
@@ -77,6 +96,8 @@ public:
     }
 
     double benchmark_pure_ocall(int iterations) {
+        flush_caches();
+
         // First, enter the enclave once to set up the measurement context
         sgx_status_t ret = ecall_setup_ocall_benchmark(global_eid);
         if (ret != SGX_SUCCESS) {
@@ -101,6 +122,8 @@ public:
 
     // Benchmark an ECALL that immediately makes an OCALL back to the app
     double benchmark_ping_pong(int iterations) {
+        flush_caches();
+
         auto start = std::chrono::high_resolution_clock::now();
         for (int i = 0; i < iterations; i++) {
             ecall_ping(global_eid, i);
@@ -112,6 +135,8 @@ public:
 
     // Benchmark untrusted file reading via OCALL
     double benchmark_file_read(const std::string& filename, int iterations) {
+        flush_caches();
+
         auto start = std::chrono::high_resolution_clock::now();
         for (int i = 0; i < iterations; i++) {
             ecall_file_read(global_eid, filename.c_str());
@@ -123,6 +148,8 @@ public:
 
     // Benchmark SGX sealed file reading
     double benchmark_sgx_file_read(const std::string& filename, int iterations) {
+        flush_caches();
+
         auto start = std::chrono::high_resolution_clock::now();
         for (int i = 0; i < iterations; i++) {
             ecall_sgx_file_read(global_eid, filename.c_str());
@@ -133,6 +160,8 @@ public:
     }
 
     double benchmark_crypto_workload(int iterations) {
+        flush_caches();
+
         auto start = std::chrono::high_resolution_clock::now();
         for (int i = 0; i < iterations; i++) {
             ecall_crypto_workload(global_eid);
@@ -163,10 +192,9 @@ void set_mitigation_flag(const std::string& flag) {
     if (flag == "lfence") g_app_config.lfence_barrier = true;
     else if (flag == "mfence") g_app_config.mfence_barrier = true;
     else if (flag == "cache") g_app_config.cache_flushing = true;
-    else if (flag == "timing") g_app_config.timing_noise = true;
     else if (flag == "constant") g_app_config.constant_time_ops = true;
     else if (flag == "memory") g_app_config.memory_barriers = true;
-    else if (flag == "hyperthreading") g_app_config.disable_hyperthreading = true;
+    // else if (flag == "hyperthreading") g_app_config.disable_hyperthreading = true;
 }
 
 void parse_mitigations(const std::string& mitigation_str) {
@@ -177,10 +205,9 @@ void parse_mitigations(const std::string& mitigation_str) {
         g_app_config.lfence_barrier = true;
         g_app_config.mfence_barrier = true;
         g_app_config.cache_flushing = true;
-        g_app_config.timing_noise = true;
         g_app_config.constant_time_ops = true;
         g_app_config.memory_barriers = true;
-        g_app_config.disable_hyperthreading = true;
+        // g_app_config.disable_hyperthreading = true;
         return;
     }
 
@@ -201,11 +228,11 @@ void print_config() {
     std::cout << "  LFENCE barrier:       " << (g_app_config.lfence_barrier ? "ON" : "OFF") << "\n";
     std::cout << "  MFENCE barrier:       " << (g_app_config.mfence_barrier ? "ON" : "OFF") << "\n";
     std::cout << "  Cache flushing:       " << (g_app_config.cache_flushing ? "ON" : "OFF") << "\n";
-    std::cout << "  Timing noise:         " << (g_app_config.timing_noise ? "ON" : "OFF") << "\n";
     std::cout << "  Constant time ops:    " << (g_app_config.constant_time_ops ? "ON" : "OFF") << "\n";
     std::cout << "  Memory barriers:      " << (g_app_config.memory_barriers ? "ON" : "OFF") << "\n";
-    std::cout << "  Disable hyperthreading: " << (g_app_config.disable_hyperthreading ? "ON" : "OFF") << "\n";
+    // std::cout << "  Disable hyperthreading: " << (g_app_config.disable_hyperthreading ? "ON" : "OFF") << "\n";
 }
+
 
 // --- OCALL Implementations ---
 

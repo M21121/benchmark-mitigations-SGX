@@ -3,7 +3,14 @@
 SGX_SDK ?= /opt/intel/sgxsdk
 SGX_MODE ?= HW
 SGX_ARCH ?= x64
-SGX_DEBUG ?= 1
+
+# Set DisableDebug value based on SGX_DEBUG
+ifeq ($(SGX_DEBUG), 1)
+	DISABLE_DEBUG_VALUE := 0
+else
+	DISABLE_DEBUG_VALUE := 1
+endif
+
 
 ifeq ($(shell getconf LONG_BIT), 32)
 	SGX_ARCH := x86
@@ -24,8 +31,8 @@ else
 endif
 
 # Compiler settings
-CXX := g++
-CC := gcc
+CXX := /usr/bin/g++
+CC := /usr/bin/gcc
 
 # Debug/Release flags
 ifeq ($(SGX_DEBUG), 1)
@@ -60,7 +67,7 @@ App_Cpp_Files := app.cpp app_config.cpp
 App_Include_Paths := -I$(SGX_SDK)/include -I.
 App_C_Flags := $(SGX_COMMON_CFLAGS) $(SECURITY_FLAGS) $(App_Include_Paths)
 App_Cpp_Flags := $(SGX_COMMON_CXXFLAGS) $(SECURITY_FLAGS) $(App_Include_Paths)
-App_Link_Flags := $(SGX_COMMON_FLAGS) $(SECURITY_FLAGS) -L$(SGX_LIBRARY_PATH) \
+App_Link_Flags := $(SGX_COMMON_FLAGS) $(SECURITY_FLAGS) -B/usr/bin/ -L$(SGX_LIBRARY_PATH) \
 	-lsgx_urts -lpthread
 
 ifneq ($(SGX_MODE), HW)
@@ -238,7 +245,7 @@ $(Enclave_Config_File):
 	@echo '  <HeapMaxSize>0x100000</HeapMaxSize>' >> $@
 	@echo '  <TCSNum>10</TCSNum>' >> $@
 	@echo '  <TCSPolicy>1</TCSPolicy>' >> $@
-	@echo '  <DisableDebug>0</DisableDebug>' >> $@
+	@echo '  <DisableDebug>$(DISABLE_DEBUG_VALUE)</DisableDebug>' >> $@
 	@echo '  <MiscSelect>0</MiscSelect>' >> $@
 	@echo '  <MiscMask>0xFFFFFFFF</MiscMask>' >> $@
 	@echo '</EnclaveConfiguration>' >> $@

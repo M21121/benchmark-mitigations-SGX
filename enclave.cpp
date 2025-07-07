@@ -33,10 +33,6 @@ void ecall_empty() {
         apply_speculation_mitigations();
     }
 
-    if (g_enclave_config.timing_noise) {
-        mitigations::timing_noise();
-    }
-
     perform_stable_workload();
 
     if (g_enclave_config.memory_barriers) {
@@ -44,49 +40,34 @@ void ecall_empty() {
     }
 }
 
-
 void ecall_ping(int iteration) {
     apply_speculation_mitigations();
-    mitigations::timing_noise();
     pong_ocall(iteration);
-    mitigations::timing_noise();
 }
 
 void ecall_trigger_ocall() {
     apply_speculation_mitigations();
-    mitigations::timing_noise();
     empty_ocall();
     apply_speculation_mitigations();
-    mitigations::timing_noise();
 }
 
-// Add to enclave.cpp
 void ecall_setup_ocall_benchmark() {
-    // Setup any necessary state for OCALL measurement
     apply_speculation_mitigations();
 }
 
 void ecall_measure_pure_ocall(int iterations) {
-    // This function runs inside the enclave and measures pure OCALL overhead
     apply_speculation_mitigations();
-    mitigations::timing_noise();
 
-    // The timing is done on the app side, so we just make the OCALLs here
     for (int i = 0; i < iterations; i++) {
         empty_ocall();
-        // Apply mitigations between calls if configured
         if (i % 100 == 0) {
             apply_speculation_mitigations();
         }
     }
-
-    mitigations::timing_noise();
 }
 
-// METHOD 1: Untrusted File I/O (fast, applies mitigations conditionally)
 void ecall_file_read(const char* filename) {
     apply_speculation_mitigations();
-    mitigations::timing_noise();
 
     char buffer[8192] = {0};
     size_t bytes_read = 0;
@@ -110,14 +91,10 @@ void ecall_file_read(const char* filename) {
             mitigations::secure_memzero(buffer, sizeof(buffer));
         }
     }
-
-    mitigations::timing_noise();
 }
 
-// METHOD 2: SGX Sealed Data (slow, hardware encryption, applies mitigations conditionally)
 void ecall_sgx_file_read(const char* filename) {
     apply_speculation_mitigations();
-    mitigations::timing_noise();
 
     const size_t plain_size = 4096;
     const size_t sealed_overhead = sgx_calc_sealed_data_size(0, plain_size);
@@ -131,7 +108,6 @@ void ecall_sgx_file_read(const char* filename) {
         char unsealed_buffer[plain_size] = {0};
         uint32_t unsealed_len = sizeof(unsealed_buffer);
 
-        // SGX unsealing (always - this is what makes it "sgx_file_read")
         sgx_status_t ret = sgx_unseal_data(
             (const sgx_sealed_data_t*)sealed_buffer,
             NULL, NULL,
@@ -147,17 +123,13 @@ void ecall_sgx_file_read(const char* filename) {
                 }
             }
 
-            // Always secure cleanup for sealed data
             mitigations::secure_memzero(unsealed_buffer, sizeof(unsealed_buffer));
         }
     }
 
-    // Always secure cleanup for sealed operations
     mitigations::secure_memzero(sealed_buffer, sizeof(sealed_buffer));
-    mitigations::timing_noise();
 }
 
-// Helper function to create sealed test files
 void ecall_create_sealed_file(const char* filename, const char* data, size_t data_len) {
     apply_speculation_mitigations();
 
@@ -185,7 +157,6 @@ void ecall_create_sealed_file(const char* filename, const char* data, size_t dat
 
 void ecall_crypto_workload() {
     apply_speculation_mitigations();
-    mitigations::timing_noise();
 
     const size_t data_size = 4096;
     char buffer[data_size];
@@ -213,6 +184,4 @@ void ecall_crypto_workload() {
     mitigations::cache_flush(buffer, data_size);
     mitigations::cache_flush(hash_output, 32);
     mitigations::secure_memzero(buffer, data_size);
-
-    mitigations::timing_noise();
 }

@@ -16,15 +16,15 @@ MITIGATION_SETS=(
     "lfence"
     "mfence"
     "cache"
-    "timing"
     "constant"
     "memory"
-    "hyperthreading"
+    # "hyperthreading"
     "all"
 )
 
+
 make clean
-make SGX_MODE=1
+make SGX_MODE=1 SGX_DEBUG=0
 
 if [ $? -ne 0 ]; then
     echo "✗ Build failed. Aborting benchmark."

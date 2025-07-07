@@ -2,25 +2,25 @@
 
 ## Performance Results (Time per Operation in μs)
 
-| **Operation**      | **none** | **lfence** | **mfence** | **cache** | **timing** | **constant** | **memory** | **hyperthreading*** | **all** |
-| ------------------ | -------- | ---------- | ---------- | --------- | ---------- | ------------ | ---------- | ------------------- | ------- |
-| **ecall**          | 6.66917  | 6.72574    | 6.78912    | 6.67021   | 8.02439    | 6.63059      | 6.91942    | 6.50976             | 7.83275 |
-| **pure_ocall**     | 5.9011   | 5.86134    | 5.83041    | 5.93472   | 5.94235    | 5.93486      | 5.86473    | 5.83997             | 5.81651 |
-| **pingpong**       | 12.5973  | 12.5876    | 12.8316    | 12.6404   | 15.2482    | 12.9824      | 12.731     | 12.5419             | 14.1735 |
-| **untrusted_file** | 22.8575  | 29.6145    | 31.0302    | 63.2539   | 39.2754    | 36.9131      | 36.8176    | 32.944              | 38.043  |
-| **sealed_file**    | 16.4631  | 16.6511    | 9.56895    | 36.2543   | 18.9361    | 49.1894      | 16.4896    | 16.291              | 54.2919 |
-| **crypto**         | 52.0134  | 51.8776    | 52.4089    | 49.8267   | 53.3002    | 68.2479      | 50.0095    | 42.2501             | 78.9367 |
+| **Operation**    | **none**       | **lfence**     | **mfence**     | **cache**      | **constant**   | **memory**     | **all**        |
+| ---------------- | -------------- | -------------- | -------------- | -------------- | -------------- | -------------- | -------------- |
+| **ecall**        | 6.60502        | 6.60397        | 6.55655        | 6.56579        | 6.56282        | 6.69297        | 6.60243        |
+| **pure_ocall**   | 5.74083        | 5.81291        | 5.83389        | 5.81329        | 5.79906        | 5.85145        | 5.89935        |
+| **pingpong**     | 9.55442        | 10.6205        | 7.16157        | 7.08746        | 6.93105        | 10.3558        | 10.0666        |
+| **untrusted_file** | 25.2394        | 26.5924        | 28.7013        | 41.772         | 22.7538        | 27.9871        | 41.1265        |
+| **sealed_file**  | 13.7896        | 9.22112        | 10.3831        | 20.2141        | 10.1982        | 9.646          | 29.3757        |
+| **crypto**       | 9.16822        | 9.54019        | 11.2563        | 24.9739        | 10.3706        | 16.7291        | 26.1889        |
 
 ## Overhead (Percentage)
 
-| **Operation**      | **none** | **lfence** | **mfence** | **cache** | **timing** | **constant** | **memory** | **hyperthreading*** | **all** |
-| ------------------ | -------- | ---------- | ---------- | --------- | ---------- | ------------ | ---------- | ------------------- | ------- |
-| **ecall**          | 0.0%     | +0.8%      | +1.8%      | +0.0%     | +20.3%     | -0.6%        | +3.8%      | -2.4%               | +17.4%  |
-| **pure_ocall**     | 0.0%     | -0.7%      | -1.2%      | +0.6%     | +0.7%      | +0.6%        | -0.6%      | -1.0%               | -1.4%   |
-| **pingpong**       | 0.0%     | -0.1%      | +1.9%      | +0.3%     | +21.0%     | +3.1%        | +1.1%      | -0.4%               | +12.5%  |
-| **untrusted_file** | 0.0%     | +29.6%     | +35.8%     | +176.7%   | +71.8%     | +61.5%       | +61.1%     | +44.1%              | +66.4%  |
-| **sealed_file**    | 0.0%     | +1.1%      | -41.9%     | +120.2%   | +15.0%     | +198.8%      | +0.2%      | -1.0%               | +229.8% |
-| **crypto**         | 0.0%     | -0.3%      | +0.8%      | -4.2%     | +2.5%      | +31.2%       | -3.9%      | -18.8%              | +51.8%  |
+| **Operation**    | **none**       | **lfence**     | **mfence**     | **cache**      | **constant**   | **memory**     | **all**        |
+| ---------------- | -------------- | -------------- | -------------- | -------------- | -------------- | -------------- | -------------- |
+| **ecall**        | 0.0%           | +-0.0%         | -0.7%          | -0.6%          | -0.6%          | +1.3%          | +-0.0%         |
+| **pure_ocall**   | 0.0%           | +1.3%          | +1.6%          | +1.3%          | +1.0%          | +1.9%          | +2.8%          |
+| **pingpong**     | 0.0%           | +11.2%         | -25.0%         | -25.8%         | -27.5%         | +8.4%          | +5.4%          |
+| **untrusted_file** | 0.0%           | +5.4%          | +13.7%         | +65.5%         | -9.8%          | +10.9%         | +62.9%         |
+| **sealed_file**  | 0.0%           | -33.1%         | -24.7%         | +46.6%         | -26.0%         | -30.0%         | +113.0%        |
+| **crypto**       | 0.0%           | +4.1%          | +22.8%         | +172.4%        | +13.1%         | +82.5%         | +185.6%        |
 
 ## SGX Test Workload Summary
 
@@ -40,7 +40,5 @@
 | **lfence**          | Prevent speculative loads      | CPU instruction that blocks load operations until all prior instructions complete - applied conditionally based on configuration                       |
 | **mfence**          | Prevent speculative memory ops | CPU instruction that blocks all memory operations until prior instructions complete - applied conditionally based on configuration                     |
 | **cache**           | Prevent cache-based attacks    | Flushes memory from CPU cache using `clflush` instruction on 64-byte cache lines                                                                      |
-| **timing**          | Obscure execution timing       | Adds random delay (50-549 iterations) using SGX hardware RNG to hide timing patterns                                                                  |
 | **constant**        | Prevent data-dependent timing  | Uses constant-time algorithms for memory operations with secure cleanup and cache flushing                                                             |
 | **memory**          | Enforce memory ordering        | Uses `mfence` to prevent memory reordering attacks - applied conditionally in ecall operations                                                        |
-| **hyperthreading*** | Isolate from other threads     | Pins process to physical CPU core to simulate disabling hyperthreading. Hyperthreading would have to be disabled in the BIOS for a more accurate test. |
