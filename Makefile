@@ -258,9 +258,9 @@ $(Enclave_Config_File):
 	@echo '<EnclaveConfiguration>' > $@
 	@echo '  <ProdID>0</ProdID>' >> $@
 	@echo '  <ISVSVN>0</ISVSVN>' >> $@
-	@echo '  <StackMaxSize>0x40000</StackMaxSize>' >> $@
-	@echo '  <HeapMaxSize>0x100000</HeapMaxSize>' >> $@
-	@echo '  <TCSNum>10</TCSNum>' >> $@
+	@echo '  <StackMaxSize>0x400000</StackMaxSize>' >> $@
+	@echo '  <HeapMaxSize>0x100000000</HeapMaxSize' >> $@
+	@echo '  <TCSNum>1</TCSNum>' >> $@
 	@echo '  <TCSPolicy>1</TCSPolicy>' >> $@
 	@echo '  <DisableDebug>$(DISABLE_DEBUG_VALUE)</DisableDebug>' >> $@
 	@echo '  <MiscSelect>0</MiscSelect>' >> $@
